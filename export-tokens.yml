@@ -1,0 +1,58 @@
+name: Export Design Tokens
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_only:
+        description: "Only export tokens with Status = Approved"
+        required: false
+        type: boolean
+        default: true
+
+  schedule:
+    # Weekdays at 9 AM UTC (3 AM MT)
+    - cron: "0 9 * * 1-5"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Export tokens from Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: |
+          FLAGS=""
+          # For scheduled runs, always use --approved-only
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            FLAGS="--approved-only"
+          # For manual runs, respect the input
+          elif [ "${{ inputs.approved_only }}" = "true" ]; then
+            FLAGS="--approved-only"
+          fi
+          node export-tokens.mjs $FLAGS --out tokens.json
+
+      - name: Create PR if tokens changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(tokens): export from Notion — ${{ github.event_name }}"
+          title: "chore(tokens): design token update"
+          body: |
+            Automated export from the Notion token databases.
+
+            **Trigger:** `${{ github.event_name }}`
+            **Approved only:** `${{ github.event_name == 'schedule' || inputs.approved_only }}`
+
+            Review the `tokens.json` diff below to see what changed.
+          branch: tokens/auto-export
+          labels: design-tokens
+          delete-branch: true

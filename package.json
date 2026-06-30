@@ -1,0 +1,15 @@
+{
+  "name": "panda-design-tokens",
+  "version": "1.0.0",
+  "description": "Panda Design System – DTCG token export from Notion",
+  "type": "module",
+  "scripts": {
+    "export": "node export-tokens.mjs",
+    "export:approved": "node export-tokens.mjs --approved-only",
+    "export:dry-run": "node export-tokens.mjs --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}
