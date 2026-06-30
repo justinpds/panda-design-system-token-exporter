@@ -369,7 +369,7 @@ async function main() {
     if (desc) figmaLeaf.$description = desc;
 
     setNested(dtcg, name, dtcgLeaf);
-    setNested(figma, name, figmaLeaf);
+    setNested(figma, "primitive." + name, figmaLeaf);
   }
 
   // --- Semantics ---
@@ -407,7 +407,7 @@ async function main() {
     if (desc) figmaLeaf.$description = desc;
 
     setNested(dtcg, name, dtcgLeaf);
-    setNested(figma, name, figmaLeaf);
+    setNested(figma, "semantic." + name, figmaLeaf);
   }
 
   // --- Components ---
@@ -436,7 +436,7 @@ async function main() {
     if (desc) figmaLeaf.$description = desc;
 
     setNested(dtcg, name, dtcgLeaf);
-    setNested(figma, name, figmaLeaf);
+    setNested(figma, "component." + name, figmaLeaf);
   }
 
   // 4. Output
