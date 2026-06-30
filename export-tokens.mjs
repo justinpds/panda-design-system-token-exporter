@@ -29,11 +29,17 @@ const DB_IDS = {
   component: "2726f5855b468146b7c2e5e4ca56a669",
 };
 
-// Map token-name prefixes → DTCG $type values
+// Map token-name prefixes/paths → DTCG $type values.
+// More specific paths are checked first (longest match wins).
 const TYPE_MAP = {
+  "font.size": "number",
+  "font.weight": "fontWeight",
+  "font.family": "fontFamily",
+  "font.letter-spacing": "dimension",
+  "font.line-height": "number",
   color: "color",
+  overlay: "color",
   dimension: "dimension",
-  font: "fontFamily",
   radius: "dimension",
   stroke: "dimension",
   spacing: "dimension",
@@ -153,22 +159,33 @@ function getRollup(page, name) {
 
 function inferType(tokenName, rawValue) {
   const segments = tokenName.split(".");
-  // Walk segments looking for a type-map match
+  // Check longest prefix first so "font.size" beats "font"
   for (let i = segments.length; i > 0; i--) {
     const key = segments.slice(0, i).join(".");
     if (TYPE_MAP[key]) return TYPE_MAP[key];
   }
-  if (TYPE_MAP[segments[0]]) return TYPE_MAP[segments[0]];
 
   // Fallback heuristics on the raw value
   if (typeof rawValue === "string") {
     if (/^#[0-9a-fA-F]{3,8}$/.test(rawValue)) return "color";
     if (/^rgba?\(/.test(rawValue)) return "color";
     if (/^hsla?\(/.test(rawValue)) return "color";
+    if (/^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(rawValue)) return "color";
     if (/^\d+(\.\d+)?(px|rem|em|pt|%)$/.test(rawValue)) return "dimension";
     if (/^\d+(\.\d+)?$/.test(rawValue)) return "number";
   }
   return undefined;
+}
+
+/**
+ * Normalize raw values from Notion into DTCG-compliant formats.
+ * E.g. comma-separated RGBA "48, 22, 22, 0.5" → "rgba(48, 22, 22, 0.5)"
+ */
+function normalizeValue(value, type) {
+  if (type === "color" && /^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(value)) {
+    return `rgba(${value})`;
+  }
+  return value;
 }
 
 // ─── Nest a flat dot-path into a deep object ────────────────────────────────
@@ -240,8 +257,8 @@ async function main() {
     const description = getText(page, "Description");
     if (!name || !value) continue;
 
-    const leaf = { $value: value };
     const type = inferType(name, value);
+    const leaf = { $value: normalizeValue(value, type) };
     if (type) leaf.$type = type;
     if (description) leaf.$description = description;
 
@@ -328,3 +345,4 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
