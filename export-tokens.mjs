@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * export-tokens.mjs
+ * export-tokens.mjs  v3
  *
  * Exports design tokens from three Notion databases (Primitive, Semantic,
  * Component) into two JSON files:
@@ -9,10 +9,11 @@
  *                          and DTCG type names. For Tokens Studio / Style
  *                          Dictionary / other DTCG-aware tooling.
  *
- *   2. tokens.figma.json — Figma Variables-friendly output with all aliases
- *                          resolved to final raw values, units stripped from
- *                          dimensions, and only Figma-compatible types
- *                          (color, number, string, boolean).
+ *   2. tokens.figma.json — Figma native DTCG import format. Color values use
+ *                          the structured object format Figma requires:
+ *                          { colorSpace, components, alpha, hex }
+ *                          Dimensions use { value, unit } objects.
+ *                          All aliases are resolved to final raw values.
  *
  * Usage:
  *   NOTION_TOKEN=secret_xxx node export-tokens.mjs [flags]
@@ -57,8 +58,8 @@ const DTCG_TYPE_MAP = {
 const FIGMA_TYPE_MAP = {
   color:      "color",
   number:     "number",
-  dimension:  "number",
-  fontFamily: "string",
+  dimension:  "dimension",
+  fontFamily: "fontFamily",
   fontWeight: "number",
 };
 
@@ -190,14 +191,84 @@ function normalizeDtcg(value, type) {
   return value;
 }
 
-function normalizeFigma(value, dtcgType) {
-  if (dtcgType === "color" && /^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(value)) {
-    return `rgba(${value})`;
+// ─── Figma color object conversion ──────────────────────────────────────────────────
+//
+// Figma's native DTCG import requires color $value to be:
+// { colorSpace: "srgb", components: [r, g, b], alpha: a, hex: "#RRGGBB" }
+// where components are 0–1 floats.
+
+function hexToFigmaColor(hex) {
+  hex = hex.replace(/^#/, "");
+  let r, g, b, a = 1;
+  if (hex.length === 3) {
+    r = parseInt(hex[0] + hex[0], 16) / 255;
+    g = parseInt(hex[1] + hex[1], 16) / 255;
+    b = parseInt(hex[2] + hex[2], 16) / 255;
+  } else if (hex.length === 6) {
+    r = parseInt(hex.slice(0, 2), 16) / 255;
+    g = parseInt(hex.slice(2, 4), 16) / 255;
+    b = parseInt(hex.slice(4, 6), 16) / 255;
+  } else if (hex.length === 8) {
+    r = parseInt(hex.slice(0, 2), 16) / 255;
+    g = parseInt(hex.slice(2, 4), 16) / 255;
+    b = parseInt(hex.slice(4, 6), 16) / 255;
+    a = parseInt(hex.slice(6, 8), 16) / 255;
+  } else {
+    return null;
   }
-  if (dtcgType === "color") return value;
+  const hexStr = "#" + hex.slice(0, 6).toUpperCase();
+  return {
+    colorSpace: "srgb",
+    components: [r, g, b],
+    alpha: a,
+    hex: hexStr,
+  };
+}
+
+function rgbaToFigmaColor(rgbaStr) {
+  // Handles "rgba(48, 22, 22, 0.5)" and bare "48, 22, 22, 0.5"
+  const cleaned = rgbaStr.replace(/^rgba?\(/, "").replace(/\)$/, "");
+  const parts = cleaned.split(",").map((s) => s.trim());
+  if (parts.length < 3) return null;
+  const r = parseInt(parts[0], 10) / 255;
+  const g = parseInt(parts[1], 10) / 255;
+  const b = parseInt(parts[2], 10) / 255;
+  const a = parts.length >= 4 ? parseFloat(parts[3]) : 1;
+  const rr = Math.round(r * 255).toString(16).padStart(2, "0").toUpperCase();
+  const gg = Math.round(g * 255).toString(16).padStart(2, "0").toUpperCase();
+  const bb = Math.round(b * 255).toString(16).padStart(2, "0").toUpperCase();
+  return {
+    colorSpace: "srgb",
+    components: [r, g, b],
+    alpha: a,
+    hex: `#${rr}${gg}${bb}`,
+  };
+}
+
+function toFigmaColorValue(rawValue) {
+  if (typeof rawValue !== "string") return rawValue;
+  // hex color
+  if (/^#[0-9a-fA-F]{3,8}$/.test(rawValue)) {
+    return hexToFigmaColor(rawValue);
+  }
+  // rgba(r, g, b, a) or rgb(r, g, b)
+  if (/^rgba?\(/.test(rawValue)) {
+    return rgbaToFigmaColor(rawValue);
+  }
+  // bare "r, g, b, a" format from Notion
+  if (/^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(rawValue)) {
+    return rgbaToFigmaColor(rawValue);
+  }
+  return rawValue;
+}
+
+function normalizeFigma(value, dtcgType) {
+  if (dtcgType === "color") {
+    return toFigmaColorValue(value);
+  }
   if (dtcgType === "dimension") {
     const m = value.match(/^(-?\d+(?:\.\d+)?)/);
-    return m ? Number(m[1]) : value;
+    return m ? { value: Number(m[1]), unit: "px" } : value;
   }
   if (dtcgType === "number" || dtcgType === "fontWeight") {
     const n = Number(value);
@@ -233,17 +304,17 @@ function countLeaves(obj) {
 // ─── Main ───────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("Fetching Primitive tokens\u2026");
+  console.log("Fetching Primitive tokens…");
   const primitivePages = await queryAllPages(DB_IDS.primitive);
-  console.log(`  \u2192 ${primitivePages.length} primitives`);
+  console.log(`  → ${primitivePages.length} primitives`);
 
-  console.log("Fetching Semantic tokens\u2026");
+  console.log("Fetching Semantic tokens…");
   const semanticPages = await queryAllPages(DB_IDS.semantic);
-  console.log(`  \u2192 ${semanticPages.length} semantics`);
+  console.log(`  → ${semanticPages.length} semantics`);
 
-  console.log("Fetching Component tokens\u2026");
+  console.log("Fetching Component tokens…");
   const componentPages = await queryAllPages(DB_IDS.component);
-  console.log(`  \u2192 ${componentPages.length} components`);
+  console.log(`  → ${componentPages.length} components`);
 
   // 1. Build primitive lookup
   const primitiveLookup = new Map();
@@ -375,7 +446,7 @@ async function main() {
   const figmaCount = countLeaves(figma);
 
   if (dryRun) {
-    console.log(`\nDry run \u2014 ${dtcgCount} DTCG tokens, ${figmaCount} Figma tokens would be exported.`);
+    console.log(`\nDry run — ${dtcgCount} DTCG tokens, ${figmaCount} Figma tokens would be exported.`);
     console.log(`DTCG size:  ${(dtcgJson.length / 1024).toFixed(1)} KB`);
     console.log(`Figma size: ${(figmaJson.length / 1024).toFixed(1)} KB`);
     return;
@@ -383,12 +454,12 @@ async function main() {
 
   if (!figmaOnly) {
     writeFileSync(outDtcg, dtcgJson, "utf-8");
-    console.log(`\nWrote ${dtcgCount} tokens \u2192 ${outDtcg} (${(dtcgJson.length / 1024).toFixed(1)} KB)`);
+    console.log(`\nWrote ${dtcgCount} tokens → ${outDtcg} (${(dtcgJson.length / 1024).toFixed(1)} KB)`);
   }
 
   if (!dtcgOnly) {
     writeFileSync(outFigma, figmaJson, "utf-8");
-    console.log(`Wrote ${figmaCount} tokens \u2192 ${outFigma} (${(figmaJson.length / 1024).toFixed(1)} KB)`);
+    console.log(`Wrote ${figmaCount} tokens → ${outFigma} (${(figmaJson.length / 1024).toFixed(1)} KB)`);
   }
 }
 
