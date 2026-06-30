@@ -1,6 +1,9 @@
 # Panda Design Tokens
 
-Exports design tokens from Notion into a [DTCG-compliant](https://tr.designtokens.org/format/) `tokens.json` file for import into Figma via Tokens Studio.
+Exports design tokens from Notion into two JSON files:
+
+- **`tokens.dtcg.json`** — [DTCG-compliant](https://tr.designtokens.org/format/) with alias references (`{color.blue.500}`). For Tokens Studio, Style Dictionary, and other DTCG-aware tools.
+- **`tokens.figma.json`** — Figma Variables-ready with all aliases resolved to final raw values, units stripped from dimensions, and only Figma-compatible types (`color`, `number`, `string`).
 
 ## How to use
 
@@ -9,30 +12,26 @@ Exports design tokens from Notion into a [DTCG-compliant](https://tr.designtoken
 1. Go to the **Actions** tab in this repo
 2. Click **"Export Design Tokens"** in the left sidebar
 3. Click **"Run workflow"**
-4. Choose whether to export only approved tokens or all tokens
+4. Choose whether to export only approved tokens
 5. Click the green **"Run workflow"** button
 
 A PR will open automatically if any tokens changed. Review the diff, approve, and merge.
 
 ### Option B: Scheduled (automatic)
 
-The export runs automatically every weekday at 9 AM UTC (3 AM MT). If tokens changed since the last run, a PR is opened. No action needed unless you want to review and merge.
+The export runs automatically every weekday at 9 AM UTC. If tokens changed, a PR is opened.
 
 ---
 
 ## First-time setup (admin only)
 
-This only needs to be done once by a repo admin.
-
 ### 1. Create a Notion integration
 
-1. Go to [notion.so/my-integrations](https://www.notion.so/my-integrations)
-2. Create an internal integration in the Trinidad Benham workspace
-3. Copy the `secret_xxx` token
+Go to [notion.so/my-integrations](https://www.notion.so/my-integrations), create an internal integration, and copy the token.
 
 ### 2. Share the databases
 
-Open each of these databases in Notion and add the integration via **··· → Connections**:
+Add the integration via **··· → Connections** on each database:
 
 - [Primitive Tokens](https://app.notion.com/p/trinidadbenham/2726f5855b4681ed92b3f29a5d9f89a3)
 - [Semantic Tokens](https://app.notion.com/p/trinidadbenham/2726f5855b4681c7b24ccbdd303360b2)
@@ -40,90 +39,46 @@ Open each of these databases in Notion and add the integration via **··· → 
 
 ### 3. Add the repo secret
 
-1. Go to this repo → **Settings → Secrets and variables → Actions**
-2. Click **New repository secret**
-3. Name: `NOTION_TOKEN`
-4. Value: paste the `secret_xxx` token
-5. Click **Add secret**
-
-That's it. Any team member with write access to the repo can now trigger exports.
+Repo → **Settings → Secrets → Actions** → New secret → Name: `NOTION_TOKEN`, Value: your token.
 
 ---
 
-## How it works
+## Output formats compared
 
-The script reads all three Notion databases and resolves the reference chain:
-
-```
-Component tokens  →  reference Semantic tokens  →  reference Primitive tokens  →  raw values
-```
-
-The output uses DTCG alias syntax (`{path.to.token}`) to preserve this hierarchy:
-
-```jsonc
-{
-  "color": {
-    "blue": {
-      "500": { "$value": "#4A6FA5", "$type": "color" }       // primitive
-    },
-    "bg": {
-      "accent": {
-        "prominent": {
-          "default": { "$value": "{color.blue.500}", "$type": "color" }  // semantic → primitive
-        }
-      }
-    }
-  },
-  "button": {
-    "primary": {
-      "bg": { "$value": "{color.bg.accent.prominent.default}", "$type": "color" }  // component → semantic
-    }
-  }
-}
-```
-
-### Filtering
-
-- **Generate checkbox** in Notion controls which tokens are exported. Uncheck to exclude WIP tokens.
-- **--approved-only flag** further restricts to tokens with Status = "Approved". The scheduled workflow always uses this.
-
----
+| Aspect | `tokens.dtcg.json` | `tokens.figma.json` |
+|---|---|---|
+| Semantic values | `{color.blue.500}` (alias) | `#637DB3` (resolved) |
+| Dimension values | `5px` | `5` (number) |
+| Font sizes | `"16"` (string, type: number) | `16` (number) |
+| Overlay colors | `rgba(44, 44, 44, 0.1)` | `rgba(44, 44, 44, 0.1)` |
+| Types | DTCG spec (`dimension`, `fontFamily`) | Figma-native (`number`, `string`) |
+| Import tool | Tokens Studio / Style Dictionary | Figma native import |
 
 ## Importing into Figma
 
-1. Install [Tokens Studio](https://tokens.studio/) in Figma
-2. Point it at this repo's `tokens.json` on the `main` branch
-3. Merging a token PR automatically updates Figma on next sync
+**Via Tokens Studio (recommended for full alias support):** Point Tokens Studio at `tokens.dtcg.json` on the `main` branch. Aliases resolve automatically.
+
+**Via Figma native import:** Use `tokens.figma.json` — all values are pre-resolved, so Figma's built-in variable import can handle them directly.
 
 ---
+
+## CLI flags
+
+```bash
+NOTION_TOKEN=secret_xxx node export-tokens.mjs              # both files
+NOTION_TOKEN=secret_xxx node export-tokens.mjs --dtcg-only   # only DTCG
+NOTION_TOKEN=secret_xxx node export-tokens.mjs --figma-only  # only Figma
+NOTION_TOKEN=secret_xxx node export-tokens.mjs --approved-only
+NOTION_TOKEN=secret_xxx node export-tokens.mjs --dry-run
+NOTION_TOKEN=secret_xxx node export-tokens.mjs --out-dtcg dist/dtcg.json --out-figma dist/figma.json
+```
 
 ## Rollback
 
-If a token change causes problems:
-
 ```bash
-git revert HEAD    # revert the last merge
-# or
-git checkout <tag> -- tokens.json   # restore a tagged version
+git revert HEAD
+# or restore a tagged version
+git checkout tokens/v2.0.0 -- tokens.dtcg.json tokens.figma.json
 ```
 
-Tag important releases:
-
-```bash
-git tag -a tokens/v2.1.0 -m "Add accent palette"
-git push --tags
-```
-
----
-
-## Local development (optional)
-
-For debugging or testing changes to the export script:
-
-```bash
-git clone <this-repo> && cd panda-design-tokens
-NOTION_TOKEN=secret_xxx npm run export:dry-run   # preview
-NOTION_TOKEN=secret_xxx npm run export            # write tokens.json
-```
-
-Requires Node.js 18+. No npm install needed — zero dependencies.
+Requires Node.js 18+. Zero dependencies.
