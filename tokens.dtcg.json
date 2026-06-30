@@ -369,6 +369,130 @@
         "$type": "color",
         "$description": "Previously ebony"
       }
+    },
+    "bg": {
+      "critical": {
+        "prominent": {
+          "secondary": {
+            "default": {
+              "$value": "{color.red.600}",
+              "$type": "color"
+            }
+          },
+          "disabled": {
+            "$value": "{color.red.300}",
+            "$type": "color"
+          },
+          "focused": {
+            "$value": "{color.red.700}",
+            "$type": "color"
+          },
+          "default": {
+            "$value": "{color.red.500}",
+            "$type": "color"
+          },
+          "hover": {
+            "$value": "{color.red.700}",
+            "$type": "color"
+          }
+        },
+        "subtle": {
+          "disabled": {
+            "$value": "{color.red.50}",
+            "$type": "color"
+          },
+          "focused": {
+            "$value": "{color.red.50}",
+            "$type": "color"
+          }
+        }
+      },
+      "accent": {
+        "subtle": {
+          "focused": {
+            "$value": "{color.sky-blue.50}",
+            "$type": "color"
+          },
+          "disabled": {
+            "$value": "{color.sky-blue.50}",
+            "$type": "color"
+          },
+          "hover": {
+            "$value": "{color.sky-blue.100}",
+            "$type": "color"
+          },
+          "default": {
+            "$value": "{color.sky-blue.50}",
+            "$type": "color"
+          }
+        },
+        "prominent": {
+          "hover": {
+            "$value": "{color.sky-blue.600}",
+            "$type": "color"
+          },
+          "default": {
+            "$value": "{color.sky-blue.500}",
+            "$type": "color"
+          },
+          "focused": {
+            "$value": "{color.sky-blue.500}",
+            "$type": "color"
+          },
+          "disabled": {
+            "$value": "{color.sky-blue.300}",
+            "$type": "color"
+          }
+        }
+      },
+      "attention": {
+        "prominent": {
+          "focused": {
+            "$value": "{color.yellow.500}",
+            "$type": "color"
+          },
+          "hover": {
+            "$value": "{color.yellow.600}",
+            "$type": "color"
+          },
+          "disabled": {
+            "$value": "{color.yellow.300}",
+            "$type": "color"
+          },
+          "default": {
+            "$value": "{color.yellow.500}",
+            "$type": "color"
+          }
+        },
+        "subtle": {
+          "hover": {
+            "$value": "{color.yellow.100}",
+            "$type": "color"
+          },
+          "default": {
+            "$value": "{color.yellow.50}",
+            "$type": "color"
+          },
+          "disabled": {
+            "$value": "{color.yellow.50}",
+            "$type": "color"
+          },
+          "focused": {
+            "$value": "{color.yellow.50}",
+            "$type": "color"
+          }
+        }
+      },
+      "subtle": {
+        "hover": {
+          "$value": "{color.red.100}",
+          "$type": "color"
+        },
+        "default": {
+          "$value": "{color.red.50}",
+          "$type": "color"
+        }
+      }
     }
   },
   "font": {
