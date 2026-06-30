@@ -50,7 +50,7 @@ jobs:
 
             Two files updated:
             - `tokens.dtcg.json` — DTCG-compliant (for Tokens Studio / Style Dictionary)
-            - `tokens.figma.json` — Figma Variables-ready (resolved values, Figma types)
+            - `tokens.figma.json` — Figma native import format (structured color objects)
 
             Review the diffs below to see what changed.
           branch: tokens/auto-export
