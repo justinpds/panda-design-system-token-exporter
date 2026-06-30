@@ -37,21 +37,20 @@ const DB_IDS = {
   component: "2726f5855b468146b7c2e5e4ca56a669",
 };
 
-// Map token-name prefixes/paths → DTCG $type values.
-// More specific paths are checked first (longest match wins).
-const TYPE_MAP = {
-  "font.size": "number",
-  "font.weight": "fontWeight",
-  "font.family": "fontFamily",
+// DTCG $type by token-name prefix (longest match wins)
+const DTCG_TYPE_MAP = {
+  "font.size":           "number",
+  "font.weight":         "fontWeight",
+  "font.family":         "fontFamily",
   "font.letter-spacing": "dimension",
-  "font.line-height": "number",
-  color: "color",
-  overlay: "color",
+  "font.line-height":    "number",
+  color:     "color",
+  overlay:   "color",
   dimension: "dimension",
-  radius: "dimension",
-  stroke: "dimension",
-  spacing: "dimension",
-  opacity: "number",
+  radius:    "dimension",
+  stroke:    "dimension",
+  spacing:   "dimension",
+  opacity:   "number",
 };
 
 // DTCG type → Figma Variables type
@@ -165,36 +164,49 @@ function getRollup(page, name) {
 
 function inferDtcgType(tokenName, rawValue) {
   const segments = tokenName.split(".");
-  // Check longest prefix first so "font.size" beats "font"
   for (let i = segments.length; i > 0; i--) {
     const key = segments.slice(0, i).join(".");
     if (DTCG_TYPE_MAP[key]) return DTCG_TYPE_MAP[key];
   }
-
-  // Fallback heuristics on the raw value
   if (typeof rawValue === "string") {
-    if (/^#[0-9a-fA-F]{3,8}$/.test(rawValue)) return "color";
-    if (/^rgba?\(/.test(rawValue)) return "color";
-    if (/^hsla?\(/.test(rawValue)) return "color";
-    if (/^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(rawValue)) return "color";
-    if (/^\d+(\.\d+)?(px|rem|em|pt|%)$/.test(rawValue)) return "dimension";
-    if (/^\d+(\.\d+)?$/.test(rawValue)) return "number";
+    if (/^#[0-9a-fA-F]{3,8}$/.test(rawValue))            return "color";
+    if (/^rgba?\(/.test(rawValue))                        return "color";
+    if (/^hsla?\(/.test(rawValue))                        return "color";
+    if (/^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(rawValue))   return "color";
+    if (/^\d+(\.\d+)?(px|rem|em|pt|%)$/.test(rawValue))   return "dimension";
+    if (/^\d+(\.\d+)?$/.test(rawValue))                    return "number";
   }
   return undefined;
 }
 
-/**
- * Normalize raw values from Notion into DTCG-compliant formats.
- * E.g. comma-separated RGBA "48, 22, 22, 0.5" → "rgba(48, 22, 22, 0.5)"
- */
-function normalizeValue(value, type) {
+function toFigmaType(dtcgType) {
+  return FIGMA_TYPE_MAP[dtcgType] ?? "string";
+}
+
+function normalizeDtcg(value, type) {
   if (type === "color" && /^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(value)) {
     return `rgba(${value})`;
   }
   return value;
 }
 
-// ─── Nest a flat dot-path into a deep object ────────────────────────────────
+function normalizeFigma(value, dtcgType) {
+  if (dtcgType === "color" && /^\d+,\s*\d+,\s*\d+,\s*[\d.]+$/.test(value)) {
+    return `rgba(${value})`;
+  }
+  if (dtcgType === "color") return value;
+  if (dtcgType === "dimension") {
+    const m = value.match(/^(-?\d+(?:\.\d+)?)/);
+    return m ? Number(m[1]) : value;
+  }
+  if (dtcgType === "number" || dtcgType === "fontWeight") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : value;
+  }
+  return value;
+}
+
+// ─── Tree helpers ───────────────────────────────────────────────────────────────────
 
 function setNested(obj, dottedKey, leaf) {
   const parts = dottedKey.split(".");
@@ -274,10 +286,8 @@ async function main() {
     const desc  = getText(page, "Description");
     if (!name || !value) continue;
 
-    const type = inferType(name, value);
-    const leaf = { $value: normalizeValue(value, type) };
-    if (type) leaf.$type = type;
-    if (description) leaf.$description = description;
+    const dtcgType  = inferDtcgType(name, value);
+    const figmaType = dtcgType ? toFigmaType(dtcgType) : undefined;
 
     const dtcgLeaf = { $value: normalizeDtcg(value, dtcgType) };
     if (dtcgType) dtcgLeaf.$type = dtcgType;
@@ -386,4 +396,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
